@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.osu.host</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/usr/bin/env</string>
+      <string>python3</string>
+      <string>-m</string>
+      <string>flask</string>
+      <string>--app</string>
+      <string>host.server</string>
+      <string>run</string>
+      <string>--host</string>
+      <string>0.0.0.0</string>
+      <string>--port</string>
+      <string>5000</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/namanchetwani/Projects/Osu</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>FLASK_ENV</key>
+      <string>production</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/namanchetwani/Library/Logs/osu-host.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/namanchetwani/Library/Logs/osu-host.log</string>
+  </dict>
+</plist>

@@ -1,0 +1,16 @@
+[Unit]
+Description=Osu Pi Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/osu
+ExecStart=/usr/bin/python3 -m flask --app pi.server run --host 0.0.0.0 --port 5001
+Restart=always
+RestartSec=2
+User=pi
+Environment=FLASK_ENV=production
+
+[Install]
+WantedBy=multi-user.target

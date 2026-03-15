@@ -1,0 +1,12 @@
+You are generating a single git commit subject line.
+
+Rules:
+- Return exactly one line.
+- Use Conventional Commit style (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`).
+- Keep it <= 72 characters.
+- Use imperative mood.
+- No trailing period.
+- Do not include code fences or explanation.
+
+Git diff:
+{{DIFF}}
