@@ -57,6 +57,17 @@ Pi is treated as button + LED only. No audio is played on Pi.
 Pi `/notify/codex` forwards accepted notify events to host `/notify/codex` so the sound plays locally.
 If your Pi hostname is default, use `pi.local` in callback URLs (for example `OSU_PI_STATUS_URL=http://pi.local:5001/status/commit`).
 
+## Quick GPIO Button Test (Pi CLI)
+
+Run this directly on the Raspberry Pi to verify raw button presses:
+
+```bash
+python -m pi.button_gpio_test --pin 23
+```
+
+Press the AIY button and you should see `button_press ...` lines in the terminal.
+Use `Ctrl+C` to stop. If your wiring differs, set another BCM pin via `--pin`.
+
 ## Tests
 
 ```bash
