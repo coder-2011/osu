@@ -6,7 +6,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import requests
@@ -100,7 +100,7 @@ def create_app(
     def log_event(event: str, **fields: Any) -> None:
         payload = {
             "event": event,
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             **fields,
         }
         logger.info(json.dumps(payload, sort_keys=True))
@@ -116,14 +116,13 @@ def create_app(
     def healthz() -> Any:
         return jsonify({"ok": True})
 
-    @app.post("/button/press")
-    def button_press() -> Any:
+    def forward_button_press(source: str) -> bool:
         with lock:
             hw.set_pending()
 
         payload = {
             "source": "osu-pi",
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         headers = {"Content-Type": "application/json"}
         if cfg.host_token:
@@ -140,25 +139,48 @@ def create_app(
                 if 200 <= response.status_code < 300:
                     with lock:
                         hw.set_working()
-                    log_event("button.forwarded", status=response.status_code)
-                    return jsonify({"forwarded": True}), 202
+                    log_event("button.forwarded", status=response.status_code, source=source)
+                    return True
 
                 if attempt == cfg.host_retries:
                     with lock:
                         hw.indicate_error()
-                    log_event("button.forward_failed", status=response.status_code)
-                    return jsonify({"forwarded": False}), 502
+                    log_event(
+                        "button.forward_failed",
+                        status=response.status_code,
+                        source=source,
+                    )
+                    return False
             except requests.RequestException:
                 if attempt == cfg.host_retries:
                     with lock:
                         hw.indicate_error()
-                    log_event("button.forward_failed", reason="request_exception")
-                    return jsonify({"forwarded": False}), 502
+                    log_event(
+                        "button.forward_failed",
+                        reason="request_exception",
+                        source=source,
+                    )
+                    return False
 
                 time.sleep(cfg.host_backoff_seconds)
 
         with lock:
             hw.indicate_error()
+        return False
+
+    def on_hardware_button_press() -> None:
+        try:
+            forward_button_press(source="hardware")
+        except Exception as err:  # pragma: no cover - hardware-dependent
+            log_event("button.hardware_callback_error", error=str(err))
+
+    hw.set_button_callback(on_hardware_button_press)
+
+    @app.post("/button/press")
+    def button_press() -> Any:
+        forwarded = forward_button_press(source="api")
+        if forwarded:
+            return jsonify({"forwarded": True}), 202
         return jsonify({"forwarded": False}), 502
 
     @app.post("/notify/codex")

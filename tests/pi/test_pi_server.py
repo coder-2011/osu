@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import Callable, List
 
 from pi.server import PiConfig, create_app
 
@@ -9,6 +9,7 @@ from pi.server import PiConfig, create_app
 @dataclass
 class FakeHardware:
     events: List[str] = field(default_factory=list)
+    button_callback: Callable[[], None] | None = None
 
     def set_idle(self) -> None:
         self.events.append("set_idle")
@@ -28,6 +29,10 @@ class FakeHardware:
     def indicate_error(self) -> None:
         self.events.append("indicate_error")
 
+    def set_button_callback(self, callback: Callable[[], None]) -> None:
+        self.events.append("set_button_callback")
+        self.button_callback = callback
+
 
 def _config() -> PiConfig:
     return PiConfig(
@@ -44,13 +49,15 @@ def _config() -> PiConfig:
 
 
 def test_healthz() -> None:
-    app = create_app(config=_config(), hardware=FakeHardware())
+    hardware = FakeHardware()
+    app = create_app(config=_config(), hardware=hardware)
     client = app.test_client()
 
     response = client.get("/healthz")
 
     assert response.status_code == 200
     assert response.get_json() == {"ok": True}
+    assert "set_button_callback" in hardware.events
 
 
 def test_notify_requires_auth() -> None:
@@ -97,7 +104,7 @@ def test_status_commit_success_updates_hardware() -> None:
 
     assert response.status_code == 200
     assert response.get_json()["state"] == "success"
-    assert hardware.events == ["indicate_success", "set_idle"]
+    assert hardware.events == ["set_button_callback", "indicate_success", "set_idle"]
 
 
 def test_status_commit_failure_updates_hardware() -> None:
@@ -113,7 +120,7 @@ def test_status_commit_failure_updates_hardware() -> None:
 
     assert response.status_code == 200
     assert response.get_json()["state"] == "error"
-    assert hardware.events == ["indicate_error"]
+    assert hardware.events == ["set_button_callback", "indicate_error"]
 
 
 def test_button_press_forwards_to_host(monkeypatch) -> None:
@@ -133,7 +140,7 @@ def test_button_press_forwards_to_host(monkeypatch) -> None:
 
     assert response.status_code == 202
     assert response.get_json() == {"forwarded": True}
-    assert hardware.events == ["set_pending", "set_working"]
+    assert hardware.events == ["set_button_callback", "set_pending", "set_working"]
 
 
 def test_button_press_failure_sets_error(monkeypatch) -> None:
@@ -153,4 +160,26 @@ def test_button_press_failure_sets_error(monkeypatch) -> None:
 
     assert response.status_code == 502
     assert response.get_json() == {"forwarded": False}
-    assert hardware.events == ["set_pending", "indicate_error"]
+    assert hardware.events == ["set_button_callback", "set_pending", "indicate_error"]
+
+
+def test_hardware_button_callback_forwards(monkeypatch) -> None:
+    class Response:
+        status_code = 202
+
+    calls = []
+
+    def fake_post(*args, **kwargs):
+        calls.append((args, kwargs))
+        return Response()
+
+    monkeypatch.setattr("pi.server.requests.post", fake_post)
+
+    hardware = FakeHardware()
+    create_app(config=_config(), hardware=hardware)
+    assert hardware.button_callback is not None
+
+    hardware.button_callback()
+
+    assert len(calls) == 1
+    assert hardware.events[-2:] == ["set_pending", "set_working"]
