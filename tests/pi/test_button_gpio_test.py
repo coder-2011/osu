@@ -44,7 +44,8 @@ class FakeGPIO:
         self.cleanup_pin = pin
 
 
-def test_parse_args_auto_edge_uses_falling_for_pull_up() -> None:
+def test_parse_args_auto_edge_uses_falling_for_pull_up(monkeypatch) -> None:
+    monkeypatch.setenv("OSU_LED_GPIO_PIN", "25")
     cfg = parse_args(["--pin", "23", "--pull", "up", "--edge", "auto", "--once"])
 
     assert cfg == MonitorConfig(
@@ -54,10 +55,12 @@ def test_parse_args_auto_edge_uses_falling_for_pull_up() -> None:
         bouncetime_ms=150,
         once=True,
         led_green=True,
+        led_pin=25,
     )
 
 
-def test_parse_args_auto_edge_uses_rising_for_pull_down() -> None:
+def test_parse_args_auto_edge_uses_rising_for_pull_down(monkeypatch) -> None:
+    monkeypatch.setenv("OSU_LED_GPIO_PIN", "25")
     cfg = parse_args(["--pin", "17", "--pull", "down", "--edge", "auto", "--once"])
 
     assert cfg == MonitorConfig(
@@ -67,6 +70,7 @@ def test_parse_args_auto_edge_uses_rising_for_pull_down() -> None:
         bouncetime_ms=150,
         once=True,
         led_green=True,
+        led_pin=25,
     )
 
 
@@ -80,10 +84,11 @@ def test_run_monitor_prints_press_and_cleans_up() -> None:
         bouncetime_ms=120,
         once=True,
         led_green=True,
+        led_pin=25,
     )
     events: list[str] = []
 
-    def fake_led_initializer(_stdout) -> Callable[[], None] | None:
+    def fake_led_initializer(_gpio, _led_pin, _stdout) -> Callable[[], None] | None:
         events.append("led_on")
 
         def cleanup() -> None:
@@ -115,7 +120,15 @@ def test_main_returns_error_when_gpio_import_fails(monkeypatch) -> None:
     assert "boom" in stdout.getvalue()
 
 
-def test_parse_args_allows_disabling_green_led() -> None:
+def test_parse_args_allows_disabling_green_led(monkeypatch) -> None:
+    monkeypatch.setenv("OSU_LED_GPIO_PIN", "25")
     cfg = parse_args(["--no-led-green"])
 
     assert cfg.led_green is False
+
+
+def test_parse_args_led_pin_override(monkeypatch) -> None:
+    monkeypatch.setenv("OSU_LED_GPIO_PIN", "25")
+    cfg = parse_args(["--led-pin", "18"])
+
+    assert cfg.led_pin == 18

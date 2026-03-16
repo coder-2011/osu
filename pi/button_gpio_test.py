@@ -16,6 +16,7 @@ class MonitorConfig:
     bouncetime_ms: int
     once: bool
     led_green: bool
+    led_pin: int | None
 
 
 def _default_pin() -> int:
@@ -26,9 +27,19 @@ def _default_pin() -> int:
         return 23
 
 
+def _default_led_pin() -> int | None:
+    raw = os.getenv("OSU_LED_GPIO_PIN", "25").strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return 25
+
+
 def parse_args(argv: list[str] | None = None) -> MonitorConfig:
     parser = argparse.ArgumentParser(
-        description="Minimal GPIO button test for Raspberry Pi/AIY.",
+        description="Minimal GPIO button test for Raspberry Pi.",
     )
     parser.add_argument(
         "--pin",
@@ -62,7 +73,13 @@ def parse_args(argv: list[str] | None = None) -> MonitorConfig:
     parser.add_argument(
         "--no-led-green",
         action="store_true",
-        help="Disable AIY LED green idle indicator while monitoring.",
+        help="Disable GPIO LED indicator while monitoring.",
+    )
+    parser.add_argument(
+        "--led-pin",
+        type=int,
+        default=_default_led_pin(),
+        help="Optional BCM GPIO pin for a status LED (default: OSU_LED_GPIO_PIN or 25).",
     )
 
     args = parser.parse_args(argv)
@@ -77,6 +94,7 @@ def parse_args(argv: list[str] | None = None) -> MonitorConfig:
         bouncetime_ms=max(0, args.bouncetime_ms),
         once=bool(args.once),
         led_green=not bool(args.no_led_green),
+        led_pin=args.led_pin,
     )
 
 
@@ -106,20 +124,22 @@ def _edge_const(gpio: Any, edge: str) -> Any:
     return gpio.BOTH
 
 
-def _enable_green_led(stdout: TextIO) -> Callable[[], None] | None:
-    try:
-        from aiy.leds import Color, Leds  # type: ignore
+def _enable_green_led_gpio(
+    gpio: Any,
+    led_pin: int | None,
+    stdout: TextIO,
+) -> Callable[[], None] | None:
+    if led_pin is None:
+        return None
 
-        leds = Leds()
-        active_leds = leds.__enter__()
-        active_leds.update(active_leds.rgb_on(Color.GREEN))
+    try:
+        gpio.setup(led_pin, gpio.OUT, initial=gpio.LOW)
+        gpio.output(led_pin, gpio.HIGH)
         print("led_state=green", file=stdout, flush=True)
 
         def _cleanup() -> None:
-            try:
-                active_leds.update(active_leds.rgb_off())
-            finally:
-                leds.__exit__(None, None, None)
+            gpio.output(led_pin, gpio.LOW)
+            gpio.cleanup(led_pin)
 
         return _cleanup
     except Exception:
@@ -130,7 +150,7 @@ def run_monitor(
     cfg: MonitorConfig,
     gpio: Any,
     stdout: TextIO,
-    led_initializer: Callable[[TextIO], Callable[[], None] | None] = _enable_green_led,
+    led_initializer: Callable[[Any, int | None, TextIO], Callable[[], None] | None] = _enable_green_led_gpio,
 ) -> int:
     pull_const = _pull_const(gpio, cfg.pull)
     edge_const = _edge_const(gpio, cfg.edge)
@@ -152,7 +172,7 @@ def run_monitor(
         flush=True,
     )
     if cfg.led_green:
-        led_cleanup = led_initializer(stdout)
+        led_cleanup = led_initializer(gpio, cfg.led_pin, stdout)
 
     count = 0
     try:
