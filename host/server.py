@@ -10,6 +10,7 @@ from typing import Any
 
 from flask import Flask, jsonify, request
 
+from host.audio import LocalAudioPlayer
 from host.pipeline import PipelineConfig, load_pipeline_config, run_pipeline, send_status_callback
 
 
@@ -17,6 +18,8 @@ def create_app(config: PipelineConfig | None = None) -> Flask:
     app = Flask(__name__)
     app.config["OSU_PIPELINE_CONFIG"] = config or load_pipeline_config()
     host_token = os.getenv("OSU_HOST_TOKEN")
+    notify_token = os.getenv("OSU_NOTIFY_TOKEN")
+    audio = LocalAudioPlayer()
 
     logger = logging.getLogger("osu-host")
     if not logger.handlers:
@@ -39,6 +42,10 @@ def create_app(config: PipelineConfig | None = None) -> Flask:
         cfg: PipelineConfig = app.config["OSU_PIPELINE_CONFIG"]
         try:
             result = run_pipeline(cfg, request_id=request_id)
+            if result.success:
+                audio.play_success()
+            else:
+                audio.play_error()
             _log(
                 "pipeline.completed",
                 request_id=request_id,
@@ -79,6 +86,16 @@ def create_app(config: PipelineConfig | None = None) -> Flask:
         thread.start()
 
         return jsonify({"accepted": True, "request_id": request_id}), 202
+
+    @app.post("/notify/codex")
+    def notify_codex() -> Any:
+        if notify_token:
+            auth = request.headers.get("Authorization", "")
+            if auth != f"Bearer {notify_token}":
+                return jsonify({"error": "unauthorized"}), 401
+
+        audio.play_notify()
+        return jsonify({"accepted": True}), 202
 
     return app
 

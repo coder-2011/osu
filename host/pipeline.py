@@ -74,7 +74,7 @@ def load_pipeline_config() -> PipelineConfig:
         push_timeout_seconds=int(os.getenv("OSU_PUSH_TIMEOUT_SECONDS", "180")),
         callback_url=os.getenv(
             "OSU_PI_STATUS_URL",
-            "http://osu-pi.local:5001/status/commit",
+            "",
         ),
         callback_token=os.getenv("OSU_PI_TOKEN"),
         callback_timeout_seconds=float(os.getenv("OSU_CALLBACK_TIMEOUT_SECONDS", "2.0")),
@@ -152,6 +152,9 @@ def run_pipeline(config: PipelineConfig, request_id: str | None = None) -> Pipel
 
 
 def send_status_callback(config: PipelineConfig, result: PipelineResult) -> None:
+    if not config.callback_url.strip():
+        return
+
     payload: dict[str, Any] = {
         "request_id": result.request_id,
         "success": result.success,

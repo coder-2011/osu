@@ -66,3 +66,38 @@ def test_send_status_callback_handles_request_exception(monkeypatch) -> None:
     )
 
     assert len(calls) == 3
+
+
+def test_send_status_callback_skips_when_callback_url_empty(monkeypatch) -> None:
+    calls = []
+
+    def fake_post(*args, **kwargs):
+        calls.append(1)
+        return _Response(200)
+
+    monkeypatch.setattr("host.pipeline.requests.post", fake_post)
+
+    cfg = _config()
+    cfg = PipelineConfig(
+        repository_path=cfg.repository_path,
+        codex_cmd=cfg.codex_cmd,
+        commit_strategy=cfg.commit_strategy,
+        codex_prompt_template=cfg.codex_prompt_template,
+        project_context_file=cfg.project_context_file,
+        project_context_max_chars=cfg.project_context_max_chars,
+        diff_max_chars=cfg.diff_max_chars,
+        commit_timeout_seconds=cfg.commit_timeout_seconds,
+        push_timeout_seconds=cfg.push_timeout_seconds,
+        callback_url="",
+        callback_token=cfg.callback_token,
+        callback_timeout_seconds=cfg.callback_timeout_seconds,
+        callback_retries=cfg.callback_retries,
+        callback_backoff_seconds=cfg.callback_backoff_seconds,
+    )
+
+    send_status_callback(
+        cfg,
+        PipelineResult(success=True, status="success", request_id="r3"),
+    )
+
+    assert calls == []
