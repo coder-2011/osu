@@ -41,19 +41,6 @@ source .venv/bin/activate
 python -m flask --app pi.server run --host 0.0.0.0 --port 5001
 ```
 
-## Speaker Done Signal (Pi)
-
-To guarantee a sound when commit/push completes:
-1. Put WAV files on Pi:
-   - `/home/pi/sounds/notify.wav`
-   - `/home/pi/sounds/success.wav`
-   - `/home/pi/sounds/error.wav`
-2. Set sound env vars (`OSU_SOUND_*`) if you use different paths.
-3. Keep `OSU_PI_STATUS_URL` on host pointed to Pi `/status/commit`.
-
-On success callback, Pi runs `indicate_success()` then returns LED to idle.
-If AIY audio helper is unavailable, playback falls back to `aplay`.
-
 ## Local Machine Audio (WAV)
 
 Audio now runs on the host machine by default:
@@ -66,8 +53,8 @@ Configure:
 - `OSU_LOCAL_SOUND_BASE_DIR` or explicit `OSU_LOCAL_SOUND_*_WAV` paths
 - optional `OSU_LOCAL_AUDIO_PLAYER` (`afplay`, `aplay`, or `ffplay`)
 
-`codex-notify-chime` default callback URL is `http://localhost:5000/notify/codex`.
-Pi audio is disabled by default (`OSU_PI_AUDIO_ENABLED=0`).
+Pi is treated as button + LED only. No audio is played on Pi.
+Pi `/notify/codex` forwards accepted notify events to host `/notify/codex` so the sound plays locally.
 
 ## Tests
 

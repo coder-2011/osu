@@ -18,7 +18,9 @@ from pi.hardware import HardwareController, build_default_hardware
 @dataclass(frozen=True)
 class PiConfig:
     host_button_url: str
+    host_notify_url: str
     host_token: str | None
+    host_notify_token: str | None
     callback_token: str | None
     host_timeout_seconds: float
     host_retries: int
@@ -70,7 +72,9 @@ class NotifyDeduper:
 def load_config() -> PiConfig:
     return PiConfig(
         host_button_url=os.getenv("OSU_HOST_BUTTON_URL", "http://localhost:5000/button/press"),
+        host_notify_url=os.getenv("OSU_HOST_NOTIFY_URL", "http://localhost:5000/notify/codex"),
         host_token=os.getenv("OSU_HOST_TOKEN"),
+        host_notify_token=os.getenv("OSU_NOTIFY_TOKEN"),
         callback_token=os.getenv("OSU_PI_TOKEN"),
         host_timeout_seconds=float(os.getenv("OSU_HOST_TIMEOUT_SECONDS", "2.0")),
         host_retries=int(os.getenv("OSU_HOST_RETRIES", "2")),
@@ -168,6 +172,28 @@ def create_app(
             hw.indicate_error()
         return False
 
+    def forward_notify_event(payload: dict[str, Any]) -> None:
+        headers = {"Content-Type": "application/json"}
+        if cfg.host_notify_token:
+            headers["Authorization"] = f"Bearer {cfg.host_notify_token}"
+
+        for attempt in range(cfg.host_retries + 1):
+            try:
+                response = requests.post(
+                    cfg.host_notify_url,
+                    headers=headers,
+                    json=payload,
+                    timeout=cfg.host_timeout_seconds,
+                )
+                if 200 <= response.status_code < 300:
+                    return
+                if attempt == cfg.host_retries:
+                    return
+            except requests.RequestException:
+                if attempt == cfg.host_retries:
+                    return
+                time.sleep(cfg.host_backoff_seconds)
+
     def on_hardware_button_press() -> None:
         try:
             forward_button_press(source="hardware")
@@ -201,6 +227,7 @@ def create_app(
             log_event("notify.ignored", reason="debounced", event_type=event_type)
             return jsonify({"accepted": False, "reason": "debounced"}), 202
 
+        forward_notify_event(payload)
         log_event("notify.accepted", event_type=event_type)
         return jsonify({"accepted": True}), 202
 

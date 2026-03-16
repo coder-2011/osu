@@ -37,7 +37,9 @@ class FakeHardware:
 def _config() -> PiConfig:
     return PiConfig(
         host_button_url="http://localhost:5000/button/press",
+        host_notify_url="http://localhost:5000/notify/codex",
         host_token="host-token",
+        host_notify_token="notify-token",
         callback_token="pi-token",
         host_timeout_seconds=0.1,
         host_retries=0,
@@ -89,6 +91,33 @@ def test_notify_dedupes_same_bucket() -> None:
     assert first.status_code == 202
     assert second.status_code == 202
     assert hardware.events.count("indicate_notify") == 1
+
+
+def test_notify_forwards_to_host_for_local_audio(monkeypatch) -> None:
+    calls = []
+
+    class Response:
+        status_code = 202
+
+    def fake_post(url, headers, json, timeout):
+        calls.append((url, headers, json, timeout))
+        return Response()
+
+    monkeypatch.setattr("pi.server.requests.post", fake_post)
+
+    hardware = FakeHardware()
+    app = create_app(config=_config(), hardware=hardware)
+    client = app.test_client()
+
+    response = client.post(
+        "/notify/codex",
+        headers={"Authorization": "Bearer pi-token"},
+        json={"event_type": "agent-turn-complete", "thread_id": "t1"},
+    )
+
+    assert response.status_code == 202
+    assert calls[0][0] == "http://localhost:5000/notify/codex"
+    assert calls[0][1]["Authorization"] == "Bearer notify-token"
 
 
 def test_status_commit_success_updates_hardware() -> None:

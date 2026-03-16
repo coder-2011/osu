@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import atexit
 import logging
-import os
-import subprocess
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Callable, Protocol
 
 
@@ -55,7 +52,7 @@ class LoggingHardware:
 
 
 class AIYHardware:
-    """Real AIY hardware controller with V1/V2 LED support and button callbacks."""
+    """AIY hardware controller for button + LED only (no local audio)."""
 
     def __init__(self, logger: logging.Logger) -> None:
         self._logger = logger
@@ -64,33 +61,12 @@ class AIYHardware:
         self._led_api = "none"
         self._pattern = None
         self._color = None
-        self._play_wav = None
         self._v1_led = None
-        self._audio_enabled = os.getenv("OSU_PI_AUDIO_ENABLED", "0").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
 
-        self._sound_notify = _resolve_sound_path("OSU_SOUND_NOTIFY_WAV", "notify.wav")
-        self._sound_success = _resolve_sound_path("OSU_SOUND_SUCCESS_WAV", "success.wav")
-        self._sound_error = _resolve_sound_path("OSU_SOUND_ERROR_WAV", "error.wav")
-
-        self._init_audio()
         self._init_button_board()
         self._init_leds()
 
         atexit.register(self.close)
-
-    def _init_audio(self) -> None:
-        try:
-            from aiy.voice.audio import play_wav  # type: ignore
-
-            self._play_wav = play_wav
-            self._logger.info('{"hardware":"audio","state":"ready"}')
-        except Exception as err:  # pragma: no cover - hardware-dependent
-            self._logger.warning(f'{{"hardware":"audio","state":"unavailable","error":"{err}"}}')
 
     def _init_button_board(self) -> None:
         try:
@@ -188,8 +164,6 @@ class AIYHardware:
         elif self._led_api == "v1" and self._board is not None and self._v1_led is not None:
             self._board.led.state = self._v1_led.BLINK_3
 
-        self._play_sound(self._sound_notify)
-
     def indicate_success(self) -> None:
         if self._led_api == "v2" and self._leds is not None and self._color is not None:
             self._leds.update(self._leds.rgb_on(self._color.GREEN))
@@ -198,46 +172,12 @@ class AIYHardware:
             self._board.led.state = self._v1_led.ON
             time.sleep(0.5)
 
-        self._play_sound(self._sound_success)
-
     def indicate_error(self) -> None:
         if self._led_api == "v2" and self._leds is not None and self._pattern is not None and self._color is not None:
             self._leds.pattern = self._pattern.blink(400)
             self._leds.update(self._leds.rgb_pattern(self._color.RED))
         elif self._led_api == "v1" and self._board is not None and self._v1_led is not None:
             self._board.led.state = self._v1_led.BLINK
-
-        self._play_sound(self._sound_error)
-
-    def _play_sound(self, path: str | None) -> None:
-        if not self._audio_enabled:
-            return
-
-        if not path:
-            return
-
-        if not Path(path).exists():
-            self._logger.warning(f'{{"hardware":"audio","state":"missing-file","path":"{path}"}}')
-            return
-
-        if self._play_wav is not None:
-            try:
-                self._play_wav(path)
-                return
-            except Exception as err:  # pragma: no cover - hardware-dependent
-                self._logger.warning(f'{{"hardware":"audio","state":"play-failed","error":"{err}"}}')
-
-        # Fallback playback path in case AIY audio helpers are unavailable.
-        try:
-            subprocess.run(
-                ["aplay", path],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-        except Exception as err:  # pragma: no cover - hardware-dependent
-            self._logger.warning(f'{{"hardware":"audio","state":"fallback-play-failed","error":"{err}"}}')
 
 
 def build_default_hardware(logger: logging.Logger) -> HardwareController:
@@ -247,12 +187,3 @@ def build_default_hardware(logger: logging.Logger) -> HardwareController:
         return AIYHardware(logger=logger)
     except Exception:  # pragma: no cover - hardware-dependent
         return LoggingHardware(logger=logger)
-
-
-def _resolve_sound_path(env_var: str, default_filename: str) -> str | None:
-    override = os.getenv(env_var, "").strip()
-    if override:
-        return override
-
-    base = os.getenv("OSU_SOUND_BASE_DIR", "/home/pi/sounds").strip() or "/home/pi/sounds"
-    return str(Path(base) / default_filename)
