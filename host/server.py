@@ -57,12 +57,12 @@ def create_app(config: PipelineConfig | None = None) -> Flask:
         finally:
             pipeline_lock.release()
 
-    @app.get("/healthz")
+    @app.route("/healthz", methods=["GET"])
     def healthz() -> Any:
         return jsonify({"ok": True})
 
-    @app.post("/button/press")
-    @app.post("/commit")
+    @app.route("/button/press", methods=["POST"])
+    @app.route("/commit", methods=["POST"])
     def button_press() -> Any:
         if host_token:
             auth = request.headers.get("Authorization", "")
@@ -88,7 +88,7 @@ def create_app(config: PipelineConfig | None = None) -> Flask:
 
         return jsonify({"accepted": True, "request_id": request_id}), 202
 
-    @app.post("/notify/codex")
+    @app.route("/notify/codex", methods=["POST"])
     def notify_codex() -> Any:
         if notify_token:
             auth = request.headers.get("Authorization", "")

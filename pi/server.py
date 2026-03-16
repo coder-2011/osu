@@ -119,7 +119,7 @@ def create_app(
         header = request.headers.get("Authorization", "")
         return header == f"Bearer {cfg.callback_token}"
 
-    @app.get("/healthz")
+    @app.route("/healthz", methods=["GET"])
     def healthz() -> Any:
         return jsonify({"ok": True})
 
@@ -219,14 +219,14 @@ def create_app(
     with lock:
         hw.set_idle()
 
-    @app.post("/button/press")
+    @app.route("/button/press", methods=["POST"])
     def button_press() -> Any:
         forwarded = forward_button_press(source="api")
         if forwarded:
             return jsonify({"forwarded": True}), 202
         return jsonify({"forwarded": False}), 502
 
-    @app.post("/notify/codex")
+    @app.route("/notify/codex", methods=["POST"])
     def notify_codex() -> Any:
         if not require_auth():
             return jsonify({"error": "unauthorized"}), 401
@@ -248,7 +248,7 @@ def create_app(
         log_event("notify.accepted", event_type=event_type)
         return jsonify({"accepted": True}), 202
 
-    @app.post("/status/commit")
+    @app.route("/status/commit", methods=["POST"])
     def status_commit() -> Any:
         if not require_auth():
             return jsonify({"error": "unauthorized"}), 401
