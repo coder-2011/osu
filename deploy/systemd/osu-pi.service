@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/home/pi/osu
-ExecStart=/usr/bin/python3 -m flask --app pi.server run --host 0.0.0.0 --port 5001
+ExecStart=/usr/bin/python3 -m pi.server
 Restart=always
 RestartSec=2
 User=pi

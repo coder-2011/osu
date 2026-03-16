@@ -272,4 +272,6 @@ def create_app(
 
 
 if __name__ == "__main__":
-    create_app().run(host="0.0.0.0", port=5001)
+    host = os.getenv("OSU_PI_BIND", "0.0.0.0")
+    port = int(os.getenv("OSU_PI_PORT", "5001"))
+    create_app().run(host=host, port=port)

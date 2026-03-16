@@ -2,6 +2,8 @@
 
 Local-first workflow tool where a Pi button triggers a host-side commit pipeline, while audio alerts play on the host machine and Pi is used for button + LED state.
 
+Pi hardware integration is GPIO-only (`RPi.GPIO`) with no `aiy` dependency.
+
 ## Prerequisites
 
 - Python 3.11+ on host and Pi
@@ -31,14 +33,13 @@ Host service (computer):
 
 ```bash
 source .venv/bin/activate
-python -m flask --app host.server run --host 0.0.0.0 --port 5000
+python -m host.server
 ```
 
 Pi service:
 
 ```bash
-source .venv/bin/activate
-python -m flask --app pi.server run --host 0.0.0.0 --port 5001
+python3 -m pi.server
 ```
 
 ## Local Machine Audio (WAV)
@@ -74,9 +75,9 @@ Run this directly on the Raspberry Pi to verify raw button presses:
 python -m pi.button_gpio_test --pin 23
 ```
 
-Press the AIY button and you should see `button_press ...` lines in the terminal.
+Press the GPIO-wired button and you should see `button_press ...` lines in the terminal.
 Use `Ctrl+C` to stop. If your wiring differs, set another BCM pin via `--pin`.
-The script also lights the AIY button LED green while running (disable with `--no-led-green`).
+The script also lights the configured GPIO LED pin green while running (disable with `--no-led-green`).
 
 ## Tests
 

@@ -102,4 +102,6 @@ def create_app(config: PipelineConfig | None = None) -> Flask:
 
 
 if __name__ == "__main__":
-    create_app().run(host="0.0.0.0", port=5000)
+    host = os.getenv("OSU_HOST_BIND", "0.0.0.0")
+    port = int(os.getenv("OSU_HOST_PORT", "5000"))
+    create_app().run(host=host, port=port)

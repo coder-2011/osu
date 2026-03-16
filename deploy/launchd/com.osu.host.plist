@@ -10,14 +10,7 @@
       <string>/usr/bin/env</string>
       <string>python3</string>
       <string>-m</string>
-      <string>flask</string>
-      <string>--app</string>
       <string>host.server</string>
-      <string>run</string>
-      <string>--host</string>
-      <string>0.0.0.0</string>
-      <string>--port</string>
-      <string>5000</string>
     </array>
 
     <key>WorkingDirectory</key>
