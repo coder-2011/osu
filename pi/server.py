@@ -28,6 +28,7 @@ class PiConfig:
     notify_min_interval_ms: int
     dedupe_bucket_ms: int
     dedupe_ring_size: int
+    button_min_interval_ms: int
 
 
 class NotifyDeduper:
@@ -82,6 +83,7 @@ def load_config() -> PiConfig:
         notify_min_interval_ms=int(os.getenv("OSU_NOTIFY_MIN_INTERVAL_MS", "250")),
         dedupe_bucket_ms=int(os.getenv("OSU_NOTIFY_DEDUPE_BUCKET_MS", "1000")),
         dedupe_ring_size=int(os.getenv("OSU_NOTIFY_DEDUPE_RING_SIZE", "512")),
+        button_min_interval_ms=int(os.getenv("OSU_BUTTON_MIN_INTERVAL_MS", "500")),
     )
 
 
@@ -100,6 +102,7 @@ def create_app(
         min_interval_ms=cfg.notify_min_interval_ms,
     )
     lock = threading.Lock()
+    last_hardware_press_ms = 0
 
     def log_event(event: str, **fields: Any) -> None:
         payload = {
@@ -195,12 +198,26 @@ def create_app(
                 time.sleep(cfg.host_backoff_seconds)
 
     def on_hardware_button_press() -> None:
+        nonlocal last_hardware_press_ms
         try:
+            now_ms = int(time.monotonic() * 1000)
+            with lock:
+                elapsed_ms = now_ms - last_hardware_press_ms
+                if elapsed_ms < cfg.button_min_interval_ms:
+                    log_event(
+                        "button.hardware_ignored",
+                        reason="debounced",
+                        elapsed_ms=elapsed_ms,
+                    )
+                    return
+                last_hardware_press_ms = now_ms
             forward_button_press(source="hardware")
         except Exception as err:  # pragma: no cover - hardware-dependent
             log_event("button.hardware_callback_error", error=str(err))
 
     hw.set_button_callback(on_hardware_button_press)
+    with lock:
+        hw.set_idle()
 
     @app.post("/button/press")
     def button_press() -> Any:

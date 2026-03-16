@@ -28,15 +28,17 @@ class LoggingHardware:
     """Fallback controller when AIY libraries are unavailable."""
 
     logger: logging.Logger
+    idle_rgb: tuple[int, int, int] = (255, 140, 0)
 
     def set_idle(self) -> None:
-        self.logger.info('{"hardware":"led","state":"idle"}')
+        r, g, b = self.idle_rgb
+        self.logger.info(f'{{"hardware":"led","state":"idle-orange","rgb":[{r},{g},{b}]}}')
 
     def set_pending(self) -> None:
-        self.logger.info('{"hardware":"led","state":"pending"}')
+        self.logger.info('{"hardware":"led","state":"pending-green"}')
 
     def set_working(self) -> None:
-        self.logger.info('{"hardware":"led","state":"working"}')
+        self.logger.info('{"hardware":"led","state":"working-green-pulse"}')
 
     def indicate_notify(self) -> None:
         self.logger.info('{"hardware":"notify","event":"codex-turn"}')
@@ -62,6 +64,7 @@ class AIYHardware:
         self._pattern = None
         self._color = None
         self._v1_led = None
+        self._idle_rgb = (255, 140, 0)
 
         self._init_button_board()
         self._init_leds()
@@ -132,29 +135,28 @@ class AIYHardware:
 
     def set_idle(self) -> None:
         if self._led_api == "v2" and self._leds is not None:
-            self._leds.update(self._leds.rgb_off())
+            self._leds.update(self._leds.rgb_on(self._idle_rgb))
             return
 
         if self._led_api == "v1" and self._board is not None and self._v1_led is not None:
             self._board.led.state = self._v1_led.OFF
 
     def set_pending(self) -> None:
-        if self._led_api == "v2" and self._leds is not None and self._pattern is not None and self._color is not None:
-            self._leds.pattern = self._pattern.breathe(800)
-            self._leds.update(self._leds.rgb_pattern(self._color.YELLOW))
+        if self._led_api == "v2" and self._leds is not None and self._color is not None:
+            self._leds.update(self._leds.rgb_on(self._color.GREEN))
             return
 
         if self._led_api == "v1" and self._board is not None and self._v1_led is not None:
-            self._board.led.state = self._v1_led.PULSE_SLOW
+            self._board.led.state = self._v1_led.ON
 
     def set_working(self) -> None:
         if self._led_api == "v2" and self._leds is not None and self._pattern is not None and self._color is not None:
             self._leds.pattern = self._pattern.breathe(800)
-            self._leds.update(self._leds.rgb_pattern(self._color.BLUE))
+            self._leds.update(self._leds.rgb_pattern(self._color.GREEN))
             return
 
         if self._led_api == "v1" and self._board is not None and self._v1_led is not None:
-            self._board.led.state = self._v1_led.PULSE_QUICK
+            self._board.led.state = self._v1_led.PULSE_SLOW
 
     def indicate_notify(self) -> None:
         if self._led_api == "v2" and self._leds is not None and self._color is not None:

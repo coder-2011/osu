@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from typing import Callable
 
 from pi.button_gpio_test import MonitorConfig, main, parse_args, run_monitor
 
@@ -46,21 +47,51 @@ class FakeGPIO:
 def test_parse_args_auto_edge_uses_falling_for_pull_up() -> None:
     cfg = parse_args(["--pin", "23", "--pull", "up", "--edge", "auto", "--once"])
 
-    assert cfg == MonitorConfig(pin=23, pull="up", edge="falling", bouncetime_ms=150, once=True)
+    assert cfg == MonitorConfig(
+        pin=23,
+        pull="up",
+        edge="falling",
+        bouncetime_ms=150,
+        once=True,
+        led_green=True,
+    )
 
 
 def test_parse_args_auto_edge_uses_rising_for_pull_down() -> None:
     cfg = parse_args(["--pin", "17", "--pull", "down", "--edge", "auto", "--once"])
 
-    assert cfg == MonitorConfig(pin=17, pull="down", edge="rising", bouncetime_ms=150, once=True)
+    assert cfg == MonitorConfig(
+        pin=17,
+        pull="down",
+        edge="rising",
+        bouncetime_ms=150,
+        once=True,
+        led_green=True,
+    )
 
 
 def test_run_monitor_prints_press_and_cleans_up() -> None:
     fake_gpio = FakeGPIO(events=[23])
     stdout = io.StringIO()
-    cfg = MonitorConfig(pin=23, pull="up", edge="falling", bouncetime_ms=120, once=True)
+    cfg = MonitorConfig(
+        pin=23,
+        pull="up",
+        edge="falling",
+        bouncetime_ms=120,
+        once=True,
+        led_green=True,
+    )
+    events: list[str] = []
 
-    status = run_monitor(cfg, fake_gpio, stdout)
+    def fake_led_initializer(_stdout) -> Callable[[], None] | None:
+        events.append("led_on")
+
+        def cleanup() -> None:
+            events.append("led_off")
+
+        return cleanup
+
+    status = run_monitor(cfg, fake_gpio, stdout, led_initializer=fake_led_initializer)
 
     output = stdout.getvalue()
     assert status == 0
@@ -71,6 +102,7 @@ def test_run_monitor_prints_press_and_cleans_up() -> None:
     assert fake_gpio.setup_kwargs == {"pull_up_down": fake_gpio.PUD_UP}
     assert fake_gpio.wait_calls == [(23, fake_gpio.FALLING, 120)]
     assert fake_gpio.cleanup_pin == 23
+    assert events == ["led_on", "led_off"]
 
 
 def test_main_returns_error_when_gpio_import_fails(monkeypatch) -> None:
@@ -81,3 +113,9 @@ def test_main_returns_error_when_gpio_import_fails(monkeypatch) -> None:
 
     assert status == 2
     assert "boom" in stdout.getvalue()
+
+
+def test_parse_args_allows_disabling_green_led() -> None:
+    cfg = parse_args(["--no-led-green"])
+
+    assert cfg.led_green is False

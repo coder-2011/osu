@@ -76,6 +76,7 @@ def create_app(config: PipelineConfig | None = None) -> Flask:
             return jsonify({"accepted": False, "reason": "pipeline_busy"}), 409
 
         _log("pipeline.accepted", request_id=request_id)
+        audio.play_notify()
 
         thread = threading.Thread(
             target=_run_and_callback,

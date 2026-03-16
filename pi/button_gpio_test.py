@@ -5,7 +5,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass
-from typing import Any, TextIO
+from typing import Any, Callable, TextIO
 
 
 @dataclass(frozen=True)
@@ -15,6 +15,7 @@ class MonitorConfig:
     edge: str
     bouncetime_ms: int
     once: bool
+    led_green: bool
 
 
 def _default_pin() -> int:
@@ -58,6 +59,11 @@ def parse_args(argv: list[str] | None = None) -> MonitorConfig:
         action="store_true",
         help="Exit after the first detected press.",
     )
+    parser.add_argument(
+        "--no-led-green",
+        action="store_true",
+        help="Disable AIY LED green idle indicator while monitoring.",
+    )
 
     args = parser.parse_args(argv)
     edge = args.edge
@@ -70,6 +76,7 @@ def parse_args(argv: list[str] | None = None) -> MonitorConfig:
         edge=edge,
         bouncetime_ms=max(0, args.bouncetime_ms),
         once=bool(args.once),
+        led_green=not bool(args.no_led_green),
     )
 
 
@@ -99,9 +106,35 @@ def _edge_const(gpio: Any, edge: str) -> Any:
     return gpio.BOTH
 
 
-def run_monitor(cfg: MonitorConfig, gpio: Any, stdout: TextIO) -> int:
+def _enable_green_led(stdout: TextIO) -> Callable[[], None] | None:
+    try:
+        from aiy.leds import Color, Leds  # type: ignore
+
+        leds = Leds()
+        active_leds = leds.__enter__()
+        active_leds.update(active_leds.rgb_on(Color.GREEN))
+        print("led_state=green", file=stdout, flush=True)
+
+        def _cleanup() -> None:
+            try:
+                active_leds.update(active_leds.rgb_off())
+            finally:
+                leds.__exit__(None, None, None)
+
+        return _cleanup
+    except Exception:
+        return None
+
+
+def run_monitor(
+    cfg: MonitorConfig,
+    gpio: Any,
+    stdout: TextIO,
+    led_initializer: Callable[[TextIO], Callable[[], None] | None] = _enable_green_led,
+) -> int:
     pull_const = _pull_const(gpio, cfg.pull)
     edge_const = _edge_const(gpio, cfg.edge)
+    led_cleanup: Callable[[], None] | None = None
 
     gpio.setwarnings(False)
     gpio.setmode(gpio.BCM)
@@ -118,6 +151,8 @@ def run_monitor(cfg: MonitorConfig, gpio: Any, stdout: TextIO) -> int:
         file=stdout,
         flush=True,
     )
+    if cfg.led_green:
+        led_cleanup = led_initializer(stdout)
 
     count = 0
     try:
@@ -141,6 +176,8 @@ def run_monitor(cfg: MonitorConfig, gpio: Any, stdout: TextIO) -> int:
         print("stopped", file=stdout, flush=True)
         return 0
     finally:
+        if led_cleanup is not None:
+            led_cleanup()
         gpio.cleanup(cfg.pin)
 
 
