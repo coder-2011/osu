@@ -44,8 +44,9 @@ python -m flask --app pi.server run --host 0.0.0.0 --port 5001
 ## Local Machine Audio (WAV)
 
 Audio now runs on the host machine by default:
-- commit/push success -> local `success.wav`
-- commit/push failure -> local `error.wav`
+- button press accepted -> local `notify.wav` (start cue)
+- commit/push success -> local `success.wav` (done cue)
+- commit/push failure -> local `error.wav` (done cue)
 - Codex notify callback -> local `notify.wav`
 
 Configure:
@@ -56,6 +57,14 @@ Configure:
 Pi is treated as button + LED only. No audio is played on Pi.
 Pi `/notify/codex` forwards accepted notify events to host `/notify/codex` so the sound plays locally.
 If your Pi hostname is default, use `pi.local` in callback URLs (for example `OSU_PI_STATUS_URL=http://pi.local:5001/status/commit`).
+Pi LED behavior:
+- idle-ready: constant orange
+- button acknowledged: green
+- host pipeline running: green pulse
+- success/error: terminal success or error indicator, then return to idle
+To suppress duplicate
+hardware callbacks from button press/release transitions, tune `OSU_BUTTON_MIN_INTERVAL_MS`
+(`500` default).
 
 ## Quick GPIO Button Test (Pi CLI)
 
@@ -67,6 +76,7 @@ python -m pi.button_gpio_test --pin 23
 
 Press the AIY button and you should see `button_press ...` lines in the terminal.
 Use `Ctrl+C` to stop. If your wiring differs, set another BCM pin via `--pin`.
+The script also lights the AIY button LED green while running (disable with `--no-led-green`).
 
 ## Tests
 
