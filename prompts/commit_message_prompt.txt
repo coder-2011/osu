@@ -8,5 +8,8 @@ Rules:
 - No trailing period.
 - Do not include code fences or explanation.
 
+Project context:
+{{PROJECT_CONTEXT}}
+
 Git diff:
 {{DIFF}}

@@ -1,0 +1,133 @@
+# WRDN Context
+
+## Project Goal
+WRDN is a cross-device accountability system for high-performers. It continuously observes behavior (glasses, phone, computer), detects drift from user-stated goals and values, and delivers sparse, high-value interventions at the right moment.
+
+Core product intent:
+- tighten the feedback loop from days to seconds,
+- keep user agency intact (advice, not coercion),
+- prioritize privacy-first local system-of-record design.
+
+## Core Runtime Shape
+WRDN is split into local capture/control and remote inference.
+
+- Local side: capture, relay, policy state, encrypted persistence direction (SQLCipher).
+- Remote side (Fastify): stream/session interface and model-backed inference routing.
+
+Primary flow:
+1. S0 ingests multimodal stream chunks.
+2. S0 emits normalized interaction events/signals.
+3. R2 runs every 60s over the last 5 minutes.
+4. R2 decides `no_action`, `escalate_to_r5`, or `escalate_to_r4`.
+5. R4 handles deeper deliberation for ambiguous/high-stakes cases.
+6. R5 formats intervention output when interruption is justified.
+7. R6/R7 compact and maintain context over longer horizons.
+
+## Subsystems (Current Planning/Implementation Context)
+
+### S0: Stream Session Runtime
+Purpose:
+- realtime ingestion and normalization plane.
+
+Responsibilities:
+- accept stream traffic,
+- enforce session lifecycle + sequence semantics,
+- apply backpressure,
+- produce normalized interaction events,
+- persist and emit compact downstream signals.
+
+Key posture:
+- reliability and deterministic protocol behavior over cleverness.
+
+### C1: Calendar Context Plane
+Purpose:
+- provide planning context (not behavioral truth).
+
+Responsibilities:
+- Google Calendar sync via OAuth2,
+- 60-second snapshots,
+- fixed 3-hour reasoning window (`now - 1.5h` to `now + 1.5h`),
+- full history availability for deeper reasoning/audit.
+
+Usage policy:
+- R2/R3 consume snapshots,
+- R4 can use full history,
+- R5 does not directly consume calendar.
+
+### R2: Short-Horizon Gate
+Purpose:
+- minute-level safety and routing gate.
+
+Responsibilities:
+- evaluate recent evidence + context docs + policy constraints,
+- apply deterministic suppression first,
+- route only to allowed actions:
+  - `no_action`
+  - `escalate_to_r5`
+  - `escalate_to_r4`
+
+Key posture:
+- conservative under uncertainty,
+- sparse interventions,
+- strong contract/routing invariants.
+
+### R3: Long-Horizon Candidate Gate
+Purpose:
+- periodic trend-level detection (5-minute cadence).
+
+Responsibilities:
+- detect broader plan-vs-actual drift candidates,
+- escalate only when warranted.
+
+### R4: Deep Deliberation Loop
+Purpose:
+- handle ambiguous/high-stakes escalations with bounded deeper judgment.
+
+Responsibilities:
+- sample interactions,
+- retrieve relevant context,
+- run bounded deliberation + final arbitration,
+- emit typed decision artifact for downstream handling.
+
+Key posture:
+- conservative tie-breaks,
+- policy hard-gates before interruption,
+- evidence-backed reasoning.
+
+### R5: Interruption Formatting
+Purpose:
+- single surface for final user-facing intervention wording.
+
+Responsibilities:
+- convert approved intervention intent into concise, respectful delivery text.
+
+### R6: Nightly Context Compaction
+Purpose:
+- reduce context noise and improve next-day decision quality.
+
+Responsibilities:
+- synthesize daily artifacts,
+- maintain evidence-linked summaries,
+- preserve auditability and idempotent runs.
+
+### R7: Maintenance and Lifecycle
+Purpose:
+- retention, cleanup, and heavier maintenance ownership.
+
+Responsibilities:
+- lifecycle controls and maintenance jobs that should not run on hot decision paths.
+
+## Non-Negotiable Product/Engineering Constraints
+- Interventions must stay sparse and high-value.
+- Human remains in control; WRDN advises, does not coerce.
+- Prefer deterministic gates and explicit schema contracts at boundaries.
+- Low-evidence conditions default to defer/suppress, not aggressive interruption.
+- Keep implementation simple, auditable, and privacy-conscious.
+
+## How To Use This Document
+Use this file as a quick orientation map before implementation.
+
+When conflicts appear:
+1. Prefer `documentation/architecture.md` locked decisions.
+2. Then follow subsystem docs for local contracts.
+3. Treat this file as summary context, not a source-of-truth override.

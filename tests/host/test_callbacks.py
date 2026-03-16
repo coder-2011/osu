@@ -16,7 +16,10 @@ def _config() -> PipelineConfig:
     return PipelineConfig(
         repository_path=Path("."),
         codex_cmd=["echo", "unused"],
+        commit_strategy="single",
         codex_prompt_template=Path("prompts/commit_message_prompt.txt"),
+        project_context_file=None,
+        project_context_max_chars=1000,
         diff_max_chars=1000,
         commit_timeout_seconds=10,
         push_timeout_seconds=10,

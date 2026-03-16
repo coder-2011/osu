@@ -18,6 +18,13 @@ pip install -r requirements.txt
 cp .env.example .env.local
 ```
 
+Commit-message context file:
+- Edit `prompts/project_context.txt` with stable project/domain guidance.
+- Set `OSU_PROJECT_CONTEXT_FILE` to point to a different `.txt` file if needed.
+- Set `OSU_PROJECT_CONTEXT_MAX_CHARS` to cap injected context size.
+- Set `OSU_COMMIT_STRATEGY=agent_multi` to let Codex create multiple scoped commits.
+- Use `OSU_PROMPT_TEMPLATE=prompts/agent_commit_session_prompt.txt` for the multi-commit agent mode.
+
 ## Run Services
 
 Host service (computer):
