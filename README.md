@@ -65,7 +65,7 @@ Pi LED behavior:
 - success/error: terminal success or error indicator, then return to idle
 To suppress duplicate
 hardware callbacks from button press/release transitions, tune `OSU_BUTTON_MIN_INTERVAL_MS`
-(`500` default).
+(`1000` default).
 
 ## Quick GPIO Button Test (Pi CLI)
 

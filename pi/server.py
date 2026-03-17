@@ -83,7 +83,7 @@ def load_config() -> PiConfig:
         notify_min_interval_ms=int(os.getenv("OSU_NOTIFY_MIN_INTERVAL_MS", "250")),
         dedupe_bucket_ms=int(os.getenv("OSU_NOTIFY_DEDUPE_BUCKET_MS", "1000")),
         dedupe_ring_size=int(os.getenv("OSU_NOTIFY_DEDUPE_RING_SIZE", "512")),
-        button_min_interval_ms=int(os.getenv("OSU_BUTTON_MIN_INTERVAL_MS", "500")),
+        button_min_interval_ms=int(os.getenv("OSU_BUTTON_MIN_INTERVAL_MS", "1000")),
     )
 
 
