@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import math
 import os
+import shlex
 import shutil
 import struct
 import subprocess
 import tempfile
 import wave
 from pathlib import Path
+
+
+MACOS_DEFAULT_NOTIFY_SOUND = "/System/Library/Sounds/Glass.aiff"
 
 
 class LocalAudioPlayer:
@@ -22,7 +26,8 @@ class LocalAudioPlayer:
         self.success_wav = self._resolve_path("OSU_LOCAL_SOUND_SUCCESS_WAV", "success.wav")
         self.error_wav = self._resolve_path("OSU_LOCAL_SOUND_ERROR_WAV", "error.wav")
         self.player_cmd = self._resolve_player()
-        self.notify_wav = self._resolve_notify_default(self.notify_wav)
+        self.notify_done_shell_cmd = self._resolve_notify_done_shell_cmd(self.player_cmd)
+        self.notify_wav = self._resolve_notify_default(self.notify_wav, self.player_cmd)
 
     def play_notify(self) -> None:
         played = self._play(self.notify_wav)
@@ -47,6 +52,23 @@ class LocalAudioPlayer:
                 frequency_hz=_env_int("OSU_LOCAL_ERROR_TONE_HZ", 220),
                 duration_ms=_env_int("OSU_LOCAL_ERROR_TONE_DURATION_MS", 220),
             )
+
+    def play_agent_done(self) -> bool:
+        if not self.enabled:
+            return False
+        if not self.notify_done_shell_cmd:
+            return False
+        try:
+            proc = subprocess.run(
+                ["/bin/sh", "-lc", self.notify_done_shell_cmd],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=8,
+            )
+            return proc.returncode == 0
+        except Exception:
+            return False
 
     def play_test_tone(self, frequency_hz: int | None = None, duration_ms: int | None = None) -> None:
         if not self.enabled or not self.player_cmd:
@@ -132,18 +154,36 @@ class LocalAudioPlayer:
         return str(Path(base) / default_name)
 
     @staticmethod
-    def _resolve_notify_default(current: str | None) -> str | None:
+    def _resolve_notify_default(current: str | None, player_cmd: str | None) -> str | None:
         if not current:
             return current
         current_path = Path(current)
         if current_path.exists():
             return current
 
+        # On macOS, prefer the built-in Glass chime when using afplay.
+        if player_cmd and Path(player_cmd).name == "afplay":
+            glass = Path(MACOS_DEFAULT_NOTIFY_SOUND)
+            if glass.exists():
+                return str(glass)
+
         repo_root = Path(__file__).resolve().parent.parent
         bundled = repo_root / "codex-notify-chime" / "assets" / "notify.mp3"
         if bundled.exists():
             return str(bundled)
         return current
+
+    @staticmethod
+    def _resolve_notify_done_shell_cmd(player_cmd: str | None) -> str | None:
+        override = os.getenv("OSU_LOCAL_NOTIFY_DONE_SHELL_CMD", "").strip()
+        if override:
+            return override
+
+        if player_cmd and Path(player_cmd).name == "afplay":
+            glass = Path(MACOS_DEFAULT_NOTIFY_SOUND)
+            if glass.exists():
+                return f"{shlex.quote(player_cmd)} {shlex.quote(str(glass))}"
+        return None
 
 
 def _clamp_int(value: int, low: int, high: int) -> int:

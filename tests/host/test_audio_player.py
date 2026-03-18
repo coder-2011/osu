@@ -72,3 +72,39 @@ def test_play_notify_falls_back_to_test_tone_when_sound_missing(monkeypatch) -> 
     player.play_notify()
 
     assert calls == [(1046, 140)]
+
+
+def test_notify_prefers_macos_glass_when_afplay_available(monkeypatch) -> None:
+    monkeypatch.setenv("OSU_LOCAL_AUDIO_ENABLED", "1")
+    monkeypatch.setenv("OSU_LOCAL_AUDIO_PLAYER", "/usr/bin/afplay")
+    monkeypatch.delenv("OSU_LOCAL_SOUND_NOTIFY_WAV", raising=False)
+    monkeypatch.delenv("OSU_LOCAL_SOUND_BASE_DIR", raising=False)
+
+    def fake_exists(path: Path) -> bool:
+        return str(path) == "/System/Library/Sounds/Glass.aiff"
+
+    monkeypatch.setattr("host.audio.Path.exists", fake_exists)
+
+    player = LocalAudioPlayer()
+
+    assert player.notify_wav == "/System/Library/Sounds/Glass.aiff"
+
+
+def test_play_agent_done_uses_shell_command(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    class _Proc:
+        returncode = 0
+
+    def fake_run(command, check, capture_output, text, timeout):  # type: ignore[no-untyped-def]
+        calls.append(command)
+        return _Proc()
+
+    monkeypatch.setenv("OSU_LOCAL_AUDIO_ENABLED", "1")
+    monkeypatch.setenv("OSU_LOCAL_NOTIFY_DONE_SHELL_CMD", "afplay /System/Library/Sounds/Glass.aiff")
+    monkeypatch.setattr("host.audio.subprocess.run", fake_run)
+
+    player = LocalAudioPlayer()
+
+    assert player.play_agent_done() is True
+    assert calls == [["/bin/sh", "-lc", "afplay /System/Library/Sounds/Glass.aiff"]]

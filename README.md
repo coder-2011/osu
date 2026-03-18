@@ -49,6 +49,9 @@ Audio now runs on the host machine by default:
 - commit/push success -> local `success.wav` (done cue)
 - commit/push failure -> local `error.wav` (done cue)
 - Codex notify callback -> local `notify.wav`
+- on macOS with `afplay`, notify defaults to `/System/Library/Sounds/Glass.aiff` when no custom notify file exists
+- on `/notify/codex` (agent completion), host first tries shell command `OSU_LOCAL_NOTIFY_DONE_SHELL_CMD`
+  (default on macOS: `afplay /System/Library/Sounds/Glass.aiff`)
 - if sound files are missing, host falls back to generated local ding tones
 - default notify sound fallback uses `codex-notify-chime/assets/notify.mp3` when available
 
@@ -56,6 +59,7 @@ Configure:
 - `OSU_LOCAL_AUDIO_ENABLED=1`
 - `OSU_LOCAL_SOUND_BASE_DIR` or explicit `OSU_LOCAL_SOUND_*_WAV` paths
 - optional `OSU_LOCAL_AUDIO_PLAYER` (`afplay`, `aplay`, or `ffplay`)
+- optional `OSU_LOCAL_NOTIFY_DONE_SHELL_CMD` for explicit completion chime command
 - optional test-tone tuning:
   - `OSU_LOCAL_TEST_TONE_HZ` (default `880`)
   - `OSU_LOCAL_TEST_TONE_DURATION_MS` (default `180`)

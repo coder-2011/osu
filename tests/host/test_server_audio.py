@@ -9,6 +9,8 @@ class _FakeAudio:
         self.notify = 0
         self.success = 0
         self.error = 0
+        self.done = 0
+        self.done_should_play = False
         self.test_tones: list[tuple[int | None, int | None]] = []
 
     def play_notify(self) -> None:
@@ -19,6 +21,10 @@ class _FakeAudio:
 
     def play_error(self) -> None:
         self.error += 1
+
+    def play_agent_done(self) -> bool:
+        self.done += 1
+        return self.done_should_play
 
     def play_test_tone(self, frequency_hz: int | None = None, duration_ms: int | None = None) -> None:
         self.test_tones.append((frequency_hz, duration_ms))
@@ -41,7 +47,23 @@ def test_notify_endpoint_plays_local_audio(monkeypatch) -> None:
         json={"event_type": "agent-turn-complete"},
     )
     assert authorized.status_code == 202
+    assert fake.done == 1
     assert fake.notify == 1
+
+
+def test_notify_endpoint_uses_done_chime_when_available(monkeypatch) -> None:
+    fake = _FakeAudio()
+    fake.done_should_play = True
+    monkeypatch.setattr("host.server.LocalAudioPlayer", lambda: fake)
+
+    app = create_app()
+    client = app.test_client()
+
+    authorized = client.post("/notify/codex", json={"event_type": "agent-turn-complete"})
+
+    assert authorized.status_code == 202
+    assert fake.done == 1
+    assert fake.notify == 0
 
 
 def test_button_press_plays_start_and_completion_audio(monkeypatch) -> None:

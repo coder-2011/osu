@@ -52,6 +52,7 @@ def create_app(config: PipelineConfig | None = None) -> Flask:
                 success=result.success,
                 status=result.status,
                 commit_sha=result.commit_sha,
+                error=result.error,
             )
             send_status_callback(cfg, result)
         finally:
@@ -95,7 +96,12 @@ def create_app(config: PipelineConfig | None = None) -> Flask:
             if auth != f"Bearer {notify_token}":
                 return jsonify({"error": "unauthorized"}), 401
 
-        audio.play_notify()
+        played_done = False
+        play_done = getattr(audio, "play_agent_done", None)
+        if callable(play_done):
+            played_done = bool(play_done())
+        if not played_done:
+            audio.play_notify()
         return jsonify({"accepted": True}), 202
 
     @app.route("/audio/test", methods=["POST"])
