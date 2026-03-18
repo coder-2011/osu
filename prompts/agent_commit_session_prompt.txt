@@ -16,12 +16,23 @@ Requirements:
    - Prefer concise, descriptive, action-oriented wording.
    - If multiple areas changed, summarize common intent per commit scope.
 5. Create commits grouped by topic/scope (one commit per topic changed).
+   - Prefer splitting over squashing when unsure.
+   - Never combine unrelated concerns in one commit.
+   - Use distinct commit messages for each commit; do not reuse the same subject.
+   - If changes touch multiple subsystems (for example runtime + tests + docs), split into separate commits when they represent different ideas.
 6. Do not switch branches.
 7. Do not amend existing commits.
 8. Do not discard or revert local changes.
 9. Never use `git add .`.
    - Use `git add -A` or explicit pathspecs.
 10. If there are no changes to commit, exit cleanly without creating commits.
+
+Commit planning policy:
+- First, enumerate candidate commit groups before staging.
+- Group by intent, not by file type.
+- Keep each commit logically atomic and reviewable.
+- Ensure each commit can stand on its own with a clear subject line.
+- Before each commit, verify staged changes match only that commit's intent.
 
 Project context:
 {{PROJECT_CONTEXT}}
@@ -42,4 +53,7 @@ Diff stat:
 {{DIFF_STAT}}
 
 Output:
-- After finishing commits, print a concise summary of commit hashes and messages created.
+- After finishing commits, print a concise summary of:
+  - branch name
+  - commit hashes and messages (in order)
+  - pushed ref
