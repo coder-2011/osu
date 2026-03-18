@@ -9,6 +9,7 @@ class _FakeAudio:
         self.notify = 0
         self.success = 0
         self.error = 0
+        self.test_tones: list[tuple[int | None, int | None]] = []
 
     def play_notify(self) -> None:
         self.notify += 1
@@ -18,6 +19,9 @@ class _FakeAudio:
 
     def play_error(self) -> None:
         self.error += 1
+
+    def play_test_tone(self, frequency_hz: int | None = None, duration_ms: int | None = None) -> None:
+        self.test_tones.append((frequency_hz, duration_ms))
 
 
 def test_notify_endpoint_plays_local_audio(monkeypatch) -> None:
@@ -67,3 +71,23 @@ def test_button_press_plays_start_and_completion_audio(monkeypatch) -> None:
     assert fake.notify == 1
     assert fake.success == 1
     assert fake.error == 0
+
+
+def test_audio_test_endpoint_plays_test_tone(monkeypatch) -> None:
+    fake = _FakeAudio()
+    monkeypatch.setattr("host.server.LocalAudioPlayer", lambda: fake)
+    monkeypatch.setenv("OSU_HOST_TOKEN", "host-token")
+
+    app = create_app()
+    client = app.test_client()
+
+    unauthorized = client.post("/audio/test", json={"frequency_hz": 660, "duration_ms": 120})
+    assert unauthorized.status_code == 401
+
+    authorized = client.post(
+        "/audio/test",
+        headers={"Authorization": "Bearer host-token"},
+        json={"frequency_hz": 660, "duration_ms": 120},
+    )
+    assert authorized.status_code == 202
+    assert fake.test_tones == [(660, 120)]

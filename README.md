@@ -49,11 +49,25 @@ Audio now runs on the host machine by default:
 - commit/push success -> local `success.wav` (done cue)
 - commit/push failure -> local `error.wav` (done cue)
 - Codex notify callback -> local `notify.wav`
+- if sound files are missing, host falls back to generated local ding tones
+- default notify sound fallback uses `codex-notify-chime/assets/notify.mp3` when available
 
 Configure:
 - `OSU_LOCAL_AUDIO_ENABLED=1`
 - `OSU_LOCAL_SOUND_BASE_DIR` or explicit `OSU_LOCAL_SOUND_*_WAV` paths
 - optional `OSU_LOCAL_AUDIO_PLAYER` (`afplay`, `aplay`, or `ffplay`)
+- optional test-tone tuning:
+  - `OSU_LOCAL_TEST_TONE_HZ` (default `880`)
+  - `OSU_LOCAL_TEST_TONE_DURATION_MS` (default `180`)
+  - `OSU_LOCAL_TEST_TONE_VOLUME` (default `0.25`)
+
+Manual speaker test (host):
+
+```bash
+curl -X POST http://127.0.0.1:5051/audio/test \
+  -H 'Content-Type: application/json' \
+  -d '{"frequency_hz": 880, "duration_ms": 180}'
+```
 
 Pi is treated as button + LED only. No audio is played on Pi.
 Pi `/notify/codex` forwards accepted notify events to host `/notify/codex` so the sound plays locally.

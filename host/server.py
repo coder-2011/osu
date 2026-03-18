@@ -98,7 +98,41 @@ def create_app(config: PipelineConfig | None = None) -> Flask:
         audio.play_notify()
         return jsonify({"accepted": True}), 202
 
+    @app.route("/audio/test", methods=["POST"])
+    def audio_test() -> Any:
+        if host_token:
+            auth = request.headers.get("Authorization", "")
+            if auth != f"Bearer {host_token}":
+                return jsonify({"error": "unauthorized"}), 401
+
+        payload = request.get_json(silent=True) or {}
+        frequency_hz = _as_int(payload.get("frequency_hz"))
+        duration_ms = _as_int(payload.get("duration_ms"))
+
+        audio.play_test_tone(
+            frequency_hz=frequency_hz,
+            duration_ms=duration_ms,
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "frequency_hz": frequency_hz,
+                "duration_ms": duration_ms,
+            }
+        ), 202
+
     return app
+
+
+def _as_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 if __name__ == "__main__":
