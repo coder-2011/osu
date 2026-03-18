@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/home/pi/osu
-ExecStart=/usr/bin/python3 -m pi.server
+ExecStart=/bin/bash -lc 'set -a; [ -f ./.env.local ] && . ./.env.local; set +a; exec /usr/bin/python3 -m pi.server'
 Restart=always
 RestartSec=2
 User=pi

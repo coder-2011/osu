@@ -7,10 +7,8 @@
 
     <key>ProgramArguments</key>
     <array>
-      <string>/usr/bin/env</string>
-      <string>python3</string>
-      <string>-m</string>
-      <string>host.server</string>
+      <string>/bin/zsh</string>
+      <string>/Users/namanchetwani/Projects/Osu/deploy/launchd/run_osu_host.sh</string>
     </array>
 
     <key>WorkingDirectory</key>
