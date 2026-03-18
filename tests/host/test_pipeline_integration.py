@@ -150,3 +150,49 @@ def test_run_pipeline_agent_multi_groups_multiple_commits(tmp_path: Path) -> Non
     assert result.commit_messages is not None
     assert len(result.commit_hashes) == 2
     assert result.commit_messages == ["feat: add topic a", "fix: add topic b"]
+
+
+def test_run_pipeline_agent_multi_falls_back_when_no_commit_created(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+
+    remote = tmp_path / "remote.git"
+    _run(["git", "init", "--bare", str(remote)], tmp_path)
+    _run(["git", "remote", "add", "origin", str(remote)], repo)
+
+    (repo / "newfile.txt").write_text("hello\n", encoding="utf-8")
+
+    codex_stub = tmp_path / "codex_noop_stub.sh"
+    codex_stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    os.chmod(codex_stub, 0o755)
+
+    prompt = tmp_path / "prompt_agent.txt"
+    prompt.write_text(
+        "Branch: {{BRANCH}}\\nStatus:\\n{{STATUS_SHORT}}\\nDiff:\\n{{DIFF_UNSTAGED}}\\n",
+        encoding="utf-8",
+    )
+
+    cfg = PipelineConfig(
+        repository_path=repo,
+        codex_cmd=[str(codex_stub)],
+        commit_strategy="agent_multi",
+        codex_prompt_template=prompt,
+        project_context_file=None,
+        project_context_max_chars=1000,
+        diff_max_chars=4000,
+        commit_timeout_seconds=30,
+        push_timeout_seconds=30,
+        callback_url="http://localhost:9/unused",
+        callback_token=None,
+        callback_timeout_seconds=0.2,
+        callback_retries=0,
+        callback_backoff_seconds=0.0,
+    )
+
+    result = run_pipeline(cfg, request_id="req-4")
+
+    assert result.success is True
+    assert result.status == "success"
+    assert result.commit_messages is not None
+    assert result.commit_messages[-1] == "chore: apply pending workspace changes"

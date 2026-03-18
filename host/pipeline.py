@@ -101,6 +101,9 @@ def run_pipeline(config: PipelineConfig, request_id: str | None = None) -> Pipel
 
         if config.commit_strategy == "agent_multi":
             _run_agent_commit_session(config, branch, status_short)
+            head_after_agent = _run_git(config, ["rev-parse", "HEAD"]).strip()
+            if head_after_agent == before_sha:
+                _run_fallback_agent_commit(config)
         else:
             _run_git(config, ["add", "-A"])
             diff = _run_git(config, ["diff", "--cached", "--no-ext-diff", "--", "."])
@@ -233,6 +236,24 @@ def _run_agent_commit_session(config: PipelineConfig, branch: str, status_short:
         input_text=prompt,
         timeout_seconds=max(config.commit_timeout_seconds, 300),
         error_prefix="Codex agent commit session failed",
+    )
+
+
+def _run_fallback_agent_commit(config: PipelineConfig) -> None:
+    _run_git(config, ["add", "-A"])
+    diff = _run_git(config, ["diff", "--cached", "--no-ext-diff", "--", "."])
+    if not diff.strip():
+        raise PipelineError("No commits were created.")
+
+    default_message = os.getenv(
+        "OSU_AGENT_FALLBACK_COMMIT_MESSAGE",
+        "chore: apply pending workspace changes",
+    )
+    commit_message = sanitize_commit_message(default_message)
+    _run_git(
+        config,
+        ["commit", "-m", commit_message],
+        timeout_seconds=config.commit_timeout_seconds,
     )
 
 
