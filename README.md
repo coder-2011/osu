@@ -58,6 +58,7 @@ Configure:
 Pi is treated as button + LED only. No audio is played on Pi.
 Pi `/notify/codex` forwards accepted notify events to host `/notify/codex` so the sound plays locally.
 If your Pi hostname is default, use `pi.local` in callback URLs (for example `OSU_PI_STATUS_URL=http://pi.local:5001/status/commit`).
+When started as `python3 -m pi.server`, Pi runtime also reads `.env.local` automatically (so forwarding URLs/tokens apply without manual `source`).
 Pi LED behavior:
 - idle-ready: constant orange
 - button acknowledged: green
@@ -66,6 +67,7 @@ Pi LED behavior:
 To suppress duplicate
 hardware callbacks from button press/release transitions, tune `OSU_BUTTON_MIN_INTERVAL_MS`
 (`1000` default).
+For boards where edge callbacks are unreliable, Pi button capture defaults to `OSU_BUTTON_EVENT_BACKEND=wait_for_edge` (matching the GPIO test script behavior).
 
 ## Quick GPIO Button Test (Pi CLI)
 

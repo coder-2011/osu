@@ -4,6 +4,7 @@ import logging
 import sys
 import time
 import types
+from collections import deque
 
 from pi.hardware import GPIOHardware, LoggingHardware, build_default_hardware
 
@@ -44,6 +45,7 @@ class FakeGPIO:
         self.mode = None
         self.setup_calls: list[tuple[tuple, dict]] = []
         self.event_callbacks: dict[int, object] = {}
+        self.wait_events: deque[int] = deque()
         self.output_state: dict[int, int] = {}
         self.pwms: dict[int, FakePWM] = {}
         self.cleanup_calls: list[int] = []
@@ -71,6 +73,17 @@ class FakeGPIO:
     def output(self, pin: int, value: int) -> None:
         self.output_state[int(pin)] = value
 
+    def wait_for_edge(self, pin: int, edge, bouncetime: int, timeout: int | None = None):
+        pin = int(pin)
+        deadline = None if timeout is None else time.monotonic() + (timeout / 1000.0)
+        while True:
+            if self.wait_events and self.wait_events[0] == pin:
+                return self.wait_events.popleft()
+            if deadline is not None and time.monotonic() >= deadline:
+                break
+            time.sleep(0.005)
+        return None
+
     def PWM(self, pin: int, freq: int) -> FakePWM:
         pwm = FakePWM(pin=pin, freq=freq)
         self.pwms[int(pin)] = pwm
@@ -80,6 +93,7 @@ class FakeGPIO:
         self.cleanup_calls.append(int(pin))
 
     def trigger_edge(self, pin: int) -> None:
+        self.wait_events.append(int(pin))
         callback = self.event_callbacks.get(int(pin))
         if callback is not None:
             callback(int(pin))
@@ -101,6 +115,7 @@ def _install_fake_gpio_module(monkeypatch, fake_gpio: FakeGPIO) -> None:
         "add_event_detect",
         "remove_event_detect",
         "output",
+        "wait_for_edge",
         "PWM",
         "cleanup",
     ):
@@ -119,6 +134,7 @@ def test_gpio_hardware_button_callback_and_mono_led(monkeypatch) -> None:
     monkeypatch.setenv("OSU_BUTTON_GPIO_PIN", "23")
     monkeypatch.setenv("OSU_BUTTON_GPIO_PULL", "up")
     monkeypatch.setenv("OSU_BUTTON_GPIO_EDGE", "auto")
+    monkeypatch.setenv("OSU_BUTTON_EVENT_BACKEND", "add_event_detect")
     monkeypatch.setenv("OSU_LED_GPIO_PIN", "25")
     monkeypatch.delenv("OSU_LED_RED_PIN", raising=False)
     monkeypatch.delenv("OSU_LED_GREEN_PIN", raising=False)
@@ -160,6 +176,7 @@ def test_gpio_hardware_rgb_mode_sets_expected_colors(monkeypatch) -> None:
     monkeypatch.setenv("OSU_LED_RED_PIN", "17")
     monkeypatch.setenv("OSU_LED_GREEN_PIN", "27")
     monkeypatch.setenv("OSU_LED_BLUE_PIN", "22")
+    monkeypatch.setenv("OSU_BUTTON_EVENT_BACKEND", "add_event_detect")
 
     hw = GPIOHardware(logger=logging.getLogger("test-gpio-rgb"))
     hw.set_idle()
@@ -173,6 +190,27 @@ def test_gpio_hardware_rgb_mode_sets_expected_colors(monkeypatch) -> None:
     assert fake_gpio.pwms[27].duty_cycle == 100.0
     assert fake_gpio.pwms[22].duty_cycle == 0.0
     hw.close()
+
+
+def test_gpio_hardware_wait_for_edge_backend_invokes_callback(monkeypatch) -> None:
+    fake_gpio = FakeGPIO()
+    _install_fake_gpio_module(monkeypatch, fake_gpio)
+
+    monkeypatch.setenv("OSU_BUTTON_GPIO_PIN", "23")
+    monkeypatch.setenv("OSU_BUTTON_GPIO_PULL", "up")
+    monkeypatch.setenv("OSU_BUTTON_GPIO_EDGE", "auto")
+    monkeypatch.setenv("OSU_BUTTON_EVENT_BACKEND", "wait_for_edge")
+    monkeypatch.setenv("OSU_LED_GPIO_PIN", "")
+
+    hw = GPIOHardware(logger=logging.getLogger("test-gpio-wait"))
+
+    presses = {"count": 0}
+    hw.set_button_callback(lambda: presses.__setitem__("count", presses["count"] + 1))
+    fake_gpio.trigger_edge(23)
+    time.sleep(0.05)
+    hw.close()
+
+    assert presses["count"] == 1
 
 
 def test_build_default_hardware_falls_back_to_logging(monkeypatch) -> None:

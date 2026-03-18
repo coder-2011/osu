@@ -68,12 +68,17 @@ class GPIOHardware:
         self._state_lock = threading.Lock()
         self._pulse_thread: threading.Thread | None = None
         self._pulse_stop: threading.Event | None = None
+        self._button_thread: threading.Thread | None = None
+        self._button_stop: threading.Event | None = None
+        self._button_event_backend = os.getenv("OSU_BUTTON_EVENT_BACKEND", "wait_for_edge").strip().lower()
+        self._button_event_detect_enabled = False
 
         self._gpio = self._import_gpio()
         self._button_pin = _env_int("OSU_BUTTON_GPIO_PIN", 23)
         self._button_pull = os.getenv("OSU_BUTTON_GPIO_PULL", "up").strip().lower()
         self._button_edge = os.getenv("OSU_BUTTON_GPIO_EDGE", "auto").strip().lower()
         self._button_bouncetime_ms = _env_int("OSU_BUTTON_BOUNCETIME_MS", 150)
+        self._button_edge_const = self._edge_const(self._button_edge, self._button_pull)
 
         self._mono_led_pin = _env_optional_int("OSU_LED_GPIO_PIN", 25)
         self._rgb_pins = (
@@ -107,19 +112,31 @@ class GPIOHardware:
         else:
             self._gpio.setup(self._button_pin, self._gpio.IN, pull_up_down=pull_const)
 
-        edge_const = self._edge_const(self._button_edge, self._button_pull)
-        self._gpio.add_event_detect(
-            self._button_pin,
-            edge_const,
-            callback=self._on_button_edge,
-            bouncetime=max(0, self._button_bouncetime_ms),
-        )
+        backend = self._button_event_backend
+        if backend == "add_event_detect":
+            self._gpio.add_event_detect(
+                self._button_pin,
+                self._button_edge_const,
+                callback=self._on_button_edge,
+                bouncetime=max(0, self._button_bouncetime_ms),
+            )
+            self._button_event_detect_enabled = True
+        else:
+            self._start_button_wait_loop()
+            backend = "wait_for_edge"
+
         self._logger.info(
             (
                 '{"hardware":"button","state":"ready","pin":%d,'
-                '"pull":"%s","edge":"%s","bouncetime_ms":%d}'
+                '"pull":"%s","edge":"%s","bouncetime_ms":%d,"backend":"%s"}'
             )
-            % (self._button_pin, self._button_pull, self._button_edge, self._button_bouncetime_ms)
+            % (
+                self._button_pin,
+                self._button_pull,
+                self._button_edge,
+                self._button_bouncetime_ms,
+                backend,
+            )
         )
 
     def _init_leds(self) -> None:
@@ -171,11 +188,13 @@ class GPIOHardware:
 
     def close(self) -> None:
         self._stop_pulse()
+        self._stop_button_wait_loop()
 
-        try:
-            self._gpio.remove_event_detect(self._button_pin)
-        except Exception:
-            pass
+        if self._button_event_detect_enabled:
+            try:
+                self._gpio.remove_event_detect(self._button_pin)
+            except Exception:
+                pass
 
         self._cleanup_pwms()
 
@@ -221,6 +240,41 @@ class GPIOHardware:
             callback()
         except Exception as err:  # pragma: no cover - runtime callback safety
             self._logger.warning(f'{{"hardware":"button","state":"callback-failed","error":"{err}"}}')
+
+    def _start_button_wait_loop(self) -> None:
+        stop_event = threading.Event()
+        thread = threading.Thread(
+            target=self._button_wait_loop,
+            kwargs={"stop_event": stop_event},
+            name="gpio-button-wait-loop",
+            daemon=True,
+        )
+        self._button_stop = stop_event
+        self._button_thread = thread
+        thread.start()
+
+    def _stop_button_wait_loop(self) -> None:
+        stop_event = self._button_stop
+        thread = self._button_thread
+        if stop_event is not None:
+            stop_event.set()
+        if thread is not None:
+            thread.join(timeout=0.5)
+        self._button_stop = None
+        self._button_thread = None
+
+    def _button_wait_loop(self, stop_event: threading.Event) -> None:
+        timeout_ms = 200
+        while not stop_event.is_set():
+            channel = self._gpio.wait_for_edge(
+                self._button_pin,
+                self._button_edge_const,
+                bouncetime=max(0, self._button_bouncetime_ms),
+                timeout=timeout_ms,
+            )
+            if channel is None:
+                continue
+            self._on_button_edge(int(channel))
 
     def _set_static(self, color: tuple[float, float, float]) -> None:
         self._stop_pulse()

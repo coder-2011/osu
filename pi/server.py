@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -70,7 +72,36 @@ class NotifyDeduper:
                 self._seen_latest.pop(key, None)
 
 
+def _load_env_local() -> None:
+    """Load .env.local into process env if not already set by the parent shell."""
+
+    repo_root = Path(__file__).resolve().parent.parent
+    candidates = (Path.cwd() / ".env.local", repo_root / ".env.local")
+    env_path = next((path for path in candidates if path.is_file()), None)
+    if env_path is None:
+        return
+
+    preexisting_keys = set(os.environ.keys())
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key or key in preexisting_keys:
+            continue
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        os.environ[key] = value
+
+
 def load_config() -> PiConfig:
+    _load_env_local()
     return PiConfig(
         host_button_url=os.getenv("OSU_HOST_BUTTON_URL", "http://localhost:5000/button/press"),
         host_notify_url=os.getenv("OSU_HOST_NOTIFY_URL", "http://localhost:5000/notify/codex"),
@@ -95,6 +126,7 @@ def create_app(
     cfg = config or load_config()
 
     logger = app.logger
+    logger.setLevel(logging.INFO)
     hw = hardware or build_default_hardware(logger)
     deduper = NotifyDeduper(
         bucket_ms=cfg.dedupe_bucket_ms,

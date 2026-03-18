@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Callable, List
 
-from pi.server import PiConfig, create_app
+from pi.server import PiConfig, create_app, load_config
 
 
 @dataclass
@@ -240,3 +240,29 @@ def test_hardware_button_callback_debounces_release_signal(monkeypatch) -> None:
 
     assert len(calls) == 1
     assert hardware.events == ["set_button_callback", "set_idle", "set_pending", "set_working"]
+
+
+def test_load_config_reads_env_local_when_shell_did_not_source(monkeypatch, tmp_path) -> None:
+    env_file = tmp_path / ".env.local"
+    env_file.write_text(
+        "\n".join(
+            [
+                "OSU_HOST_BUTTON_URL=http://bad.local/button/press",
+                "  OSU_HOST_BUTTON_URL=http://192.168.1.81:5051/button/press",
+                "export OSU_HOST_NOTIFY_URL=http://192.168.1.81:5051/notify/codex",
+                "OSU_HOST_TOKEN=token-from-file",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OSU_HOST_BUTTON_URL", raising=False)
+    monkeypatch.delenv("OSU_HOST_NOTIFY_URL", raising=False)
+    monkeypatch.delenv("OSU_HOST_TOKEN", raising=False)
+
+    cfg = load_config()
+
+    assert cfg.host_button_url == "http://192.168.1.81:5051/button/press"
+    assert cfg.host_notify_url == "http://192.168.1.81:5051/notify/codex"
+    assert cfg.host_token == "token-from-file"
